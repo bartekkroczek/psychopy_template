@@ -98,8 +98,9 @@ def show_info(win: visual.Window, file_name: str, insert: str = '') -> None:
     Returns:
         Nothing.
     """
+    global SCREEN_RES
     msg = read_text_from_file(file_name, insert=insert)
-    msg = visual.TextStim(win, color='black', text=msg, height=20, wrapWidth=SCREEN_RES['width'])
+    msg = visual.TextStim(win, color='black', text=msg, height=20, wrapWidth=1000)
     msg.draw()
     win.flip()
     key = event.waitKeys(keyList=['f7', 'return', 'space', 'left', 'right'])
@@ -138,22 +139,22 @@ def main():
     # load config, all params should be there
     conf: Dict = yaml.load(open('config.yaml', encoding='utf-8'), Loader=yaml.SafeLoader)
     frame_rate: int = conf['FRAME_RATE']
-    screen_res: List[int] = conf['SCREEN_RES']
+    SCREEN_RES: List[int] = conf['SCREEN_RES']
     # === Scene init ===
-    win = visual.Window(screen_res, fullscr=False, monitor='testMonitor', units='pix', color=conf['BACKGROUND_COLOR'])
+    win = visual.Window(SCREEN_RES, fullscr=False, monitor='testMonitor', units='pix', color=conf['BACKGROUND_COLOR'])
     event.Mouse(visible=False, newPos=None, win=win)  # Make mouse invisible
 
     PART_ID = info['ID'] + info['Sex'] + info['Age']
     logging.LogFile(join('results', f'{PART_ID}.log'), level=logging.INFO)  # errors logging
     logging.info('FRAME RATE: {}'.format(frame_rate))
-    logging.info('SCREEN RES: {}'.format(screen_res))
+    logging.info('SCREEN RES: {}'.format(SCREEN_RES))
 
     # === Prepare stimulus here ===
     #
     # Examples:
     # fix_cross = visual.TextStim(win, text='+', height=100, color=conf['FIX_CROSS_COLOR'])
     # que = visual.Circle(win, radius=conf['QUE_RADIUS'], fillColor=conf['QUE_COLOR'], lineColor=conf['QUE_COLOR'])
-    # stim = visual.TextStim(win, text='', height=conf['STIM_SIZE'], color=conf['STIM_COLOR'])
+    stim = visual.TextStim(win, text=u'Naci?nij dowoln? strza?k?', height=conf['STIM_SIZE'], color=conf['STIM_COLOR'])
     # mask = visual.ImageStim(win, image='mask4.png', size=(conf['STIM_SIZE'], conf['STIM_SIZE']))
 
     # === Training ===
@@ -162,9 +163,9 @@ def main():
     csi_list = [conf['TRAINING_CSI']] * conf['NO_TRAINING_TRIALS'][1]
 
     for trial_no, csi in enumerate(csi_list, 1):
-        key_pressed, rt, ... = run_trial(win, conf, clock, ...)
-        corr = ...
-        RESULTS.append([PART_ID, trial_no, 'training', ...])
+        key_pressed, rt = run_trial(win, conf, clock, stim)
+        corr = False
+        RESULTS.append([PART_ID, trial_no, 'training', corr])
 
         # it's a good idea to show feedback during training trials
         feedb = "Poprawnie" if corr else "Niepoprawnie"
@@ -176,13 +177,17 @@ def main():
 
     # === Experiment ===
     show_info(win, join('.', 'messages', 'before_experiment.txt'))
-
+    trial_no = 0
     for block_no in range(conf['NO_BLOCKS']):
-        for _ in range(conf['Trials in block']):
-            key_pressed, rt, ... = run_trial(win, conf, clock, ...)
-            RESULTS.append([PART_ID, block_no, trial_no, 'experiment', ...])
+        for _ in range(conf['TRIALS_IN_BLOCK']):
+            key_pressed, rt = run_trial(win, conf, clock, stim)
+            RESULTS.append([PART_ID, block_no, trial_no, 'experiment'])
             trial_no += 1
-        show_image(win, join('.', 'images', 'break.jpg'), size=screen_res)
+
+            # one second break
+            win.flip()
+            core.wait(1)
+        show_image(win, join('.', 'images', 'break.jpg'), size=SCREEN_RES)
 
     # === Cleaning time ===
     save_beh_results()
@@ -191,7 +196,7 @@ def main():
     win.close()
 
 
-def run_trial(win, conf, clock, ...):
+def run_trial(win, conf, clock, stim):
     """
     Prepare and present single trial of procedure.
     Input (params) should consist all data need for presenting stimuli.
@@ -231,8 +236,8 @@ def run_trial(win, conf, clock, ...):
         win.flip()
 
     if not reaction:  # no reaction during stim time, allow to answer after that
-        question_frame.draw()
-        question_label.draw()
+        # question_frame.draw()
+        # question_label.draw()
         win.flip()
         reaction = event.waitKeys(keyList=list(conf['REACTION_KEYS']), maxWait=conf['REACTION_TIME'], timeStamped=clock)
     # === Trial ended, prepare data for send  ===

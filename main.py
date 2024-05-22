@@ -6,7 +6,7 @@ import random
 import atexit
 import codecs
 
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from os.path import join
 from psychopy import visual, event, logging, gui, core
 
@@ -20,6 +20,7 @@ def save_beh_results() -> None:
     Returns:
         Nothing.
     """
+
     file_name = PART_ID + '_' + str(random.choice(range(100, 1000))) + '_beh.csv'
     with open(join('results', file_name), 'w', encoding='utf-8') as beh_file:
         beh_writer = csv.writer(beh_file)
@@ -98,7 +99,6 @@ def show_info(win: visual.Window, file_name: str, insert: str = '') -> None:
     Returns:
         Nothing.
     """
-    global SCREEN_RES
     msg = read_text_from_file(file_name, insert=insert)
     msg = visual.TextStim(win, color='black', text=msg, height=20, wrapWidth=1000)
     msg.draw()
@@ -118,82 +118,6 @@ def abort_with_error(err: str) -> None:
     """
     logging.critical(err)
     raise Exception(err)
-
-
-# GLOBALS
-
-RESULTS = list()  # list in which data will be colected
-RESULTS.append(['PART_ID', 'Trial_no', 'Reaction time', 'Correctness', '...'])  # ... Results header
-
-
-def main():
-    global PART_ID  # PART_ID is used in case of error on @atexit, that's why it must be global
-
-    # === Dialog popup ===
-    info: Dict = {'ID': '', 'Sex': ['M', "F"], 'Age': '20'}
-    dict_dlg = gui.DlgFromDict(dictionary=info, title='Experiment title, fill by your name!')
-    if not dict_dlg.OK:
-        abort_with_error('Info dialog terminated.')
-
-    clock = core.Clock()
-    # load config, all params should be there
-    conf: Dict = yaml.load(open('config.yaml', encoding='utf-8'), Loader=yaml.SafeLoader)
-    frame_rate: int = conf['FRAME_RATE']
-    SCREEN_RES: List[int] = conf['SCREEN_RES']
-    # === Scene init ===
-    win = visual.Window(SCREEN_RES, fullscr=False, monitor='testMonitor', units='pix', color=conf['BACKGROUND_COLOR'])
-    event.Mouse(visible=False, newPos=None, win=win)  # Make mouse invisible
-
-    PART_ID = info['ID'] + info['Sex'] + info['Age']
-    logging.LogFile(join('results', f'{PART_ID}.log'), level=logging.INFO)  # errors logging
-    logging.info('FRAME RATE: {}'.format(frame_rate))
-    logging.info('SCREEN RES: {}'.format(SCREEN_RES))
-
-    # === Prepare stimulus here ===
-    #
-    # Examples:
-    # fix_cross = visual.TextStim(win, text='+', height=100, color=conf['FIX_CROSS_COLOR'])
-    # que = visual.Circle(win, radius=conf['QUE_RADIUS'], fillColor=conf['QUE_COLOR'], lineColor=conf['QUE_COLOR'])
-    stim = visual.TextStim(win, text=u'Naci?nij dowoln? strza?k?', height=conf['STIM_SIZE'], color=conf['STIM_COLOR'])
-    # mask = visual.ImageStim(win, image='mask4.png', size=(conf['STIM_SIZE'], conf['STIM_SIZE']))
-
-    # === Training ===
-    show_info(win, join('.', 'messages', 'hello.txt'))
-    show_info(win, join('.', 'messages', 'before_training.txt'))
-    csi_list = [conf['TRAINING_CSI']] * conf['NO_TRAINING_TRIALS'][1]
-
-    for trial_no, csi in enumerate(csi_list, 1):
-        key_pressed, rt = run_trial(win, conf, clock, stim)
-        corr = False
-        RESULTS.append([PART_ID, trial_no, 'training', corr])
-
-        # it's a good idea to show feedback during training trials
-        feedb = "Poprawnie" if corr else "Niepoprawnie"
-        feedb = visual.TextStim(win, text=feedb, height=50, color=conf['FIX_CROSS_COLOR'])
-        feedb.draw()
-        win.flip()
-        core.wait(1)
-        win.flip()
-
-    # === Experiment ===
-    show_info(win, join('.', 'messages', 'before_experiment.txt'))
-    trial_no = 0
-    for block_no in range(conf['NO_BLOCKS']):
-        for _ in range(conf['TRIALS_IN_BLOCK']):
-            key_pressed, rt = run_trial(win, conf, clock, stim)
-            RESULTS.append([PART_ID, block_no, trial_no, 'experiment'])
-            trial_no += 1
-
-            # one second break
-            win.flip()
-            core.wait(1)
-        show_image(win, join('.', 'images', 'break.jpg'), size=SCREEN_RES)
-
-    # === Cleaning time ===
-    save_beh_results()
-    logging.flush()
-    show_info(win, join('.', 'messages', 'end.txt'))
-    win.close()
 
 
 def run_trial(win, conf, clock, stim):
@@ -234,7 +158,7 @@ def run_trial(win, conf, clock, stim):
             break
         stim.draw()
         win.flip()
-
+    reaction = None
     if not reaction:  # no reaction during stim time, allow to answer after that
         # question_frame.draw()
         # question_label.draw()
@@ -250,6 +174,72 @@ def run_trial(win, conf, clock, stim):
     return key_pressed, rt  # return all data collected during trial
 
 
-if __name__ == '__main__':
-    PART_ID = ''
-    main()
+# GLOBAL VARIABLES
+
+RESULTS = list()  # list in which data will be collected
+RESULTS.append(['PART_ID', 'Trial_no', 'Reaction time', 'Correctness'])  # Results header
+PART_ID = ''
+SCREEN_RES = []
+
+# === Dialog popup ===
+info: Dict = {'ID': '', 'Sex': ['M', "F"], 'Age': '20'}
+dict_dlg = gui.DlgFromDict(dictionary=info, title='Experiment title, fill by your name!')
+if not dict_dlg.OK:
+    abort_with_error('Info dialog terminated.')
+
+clock = core.Clock()
+# load config, all params should be there
+conf: Dict = yaml.load(open('config.yaml', encoding='utf-8'), Loader=yaml.SafeLoader)
+frame_rate: int = conf['FRAME_RATE']
+SCREEN_RES: List[int] = conf['SCREEN_RES']
+# === Scene init ===
+win = visual.Window(SCREEN_RES, fullscr=True, monitor='testMonitor', units='pix', color=conf['BACKGROUND_COLOR'])
+event.Mouse(visible=False, newPos=None, win=win)  # Make mouse invisible
+
+PART_ID = info['ID'] + info['Sex'] + info['Age']
+logging.LogFile(join('results', f'{PART_ID}.log'), level=logging.INFO)  # errors logging
+logging.info('FRAME RATE: {}'.format(frame_rate))
+logging.info('SCREEN RES: {}'.format(SCREEN_RES))
+
+# === Prepare stimulus here ===
+#
+# Examples:
+# fix_cross = visual.TextStim(win, text='+', height=100, color=conf['FIX_CROSS_COLOR'])
+# que = visual.Circle(win, radius=conf['QUE_RADIUS'], fillColor=conf['QUE_COLOR'], lineColor=conf['QUE_COLOR'])
+stim = visual.TextStim(win, text="Press any arrow.", height=conf['STIM_SIZE'], color=conf['STIM_COLOR'])
+# mask = visual.ImageStim(win, image='mask4.png', size=(conf['STIM_SIZE'], conf['STIM_SIZE']))
+
+# === Training ===
+# show_info(win, join('.', 'messages', 'hello.txt'))
+# show_info(win, join('.', 'messages', 'before_training.txt'))
+
+for trial_no in range(conf['TRAINING_TRIALS']):
+    key_pressed, rt = run_trial(win, conf, clock, stim)
+    corr = False
+    RESULTS.append([PART_ID, trial_no, 'training', corr])
+
+    # it's a good idea to show feedback during training trials
+    feedb = "Poprawnie" if corr else "Niepoprawnie"
+    feedb = visual.TextStim(win, text=feedb, height=50, color=conf['FIX_CROSS_COLOR'])
+    feedb.draw()
+    win.flip()
+    core.wait(1)
+    win.flip()
+
+# === Experiment ===
+show_info(win, join('.', 'messages', 'before_experiment.txt'))
+trial_no = 0
+for block_no in range(conf['NO_BLOCKS']):
+    for _ in range(conf['TRIALS_IN_BLOCK']):
+        key_pressed, rt = run_trial(win, conf, clock, stim)
+        RESULTS.append([PART_ID, block_no, trial_no, 'experiment'])
+        trial_no += 1
+        win.flip()
+        core.wait(1)
+    show_image(win, join('.', 'images', 'break.jpg'), size=SCREEN_RES)
+
+# === Cleaning time ===
+save_beh_results()
+logging.flush()
+show_info(win, join('.', 'messages', 'end.txt'))
+win.close()
